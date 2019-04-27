@@ -298,3 +298,5 @@ class: center, middle
 # Thanks!
 
 Slides created via the R package [**xaringan**](https://github.com/yihui/xaringan).
+
+Twitter: [@_willdebras](https://twitter.com/_willdebras)
