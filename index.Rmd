@@ -1,0 +1,300 @@
+---
+title: "Visualizing Uncertainty in R"
+subtitle: "hurricanes, spaghetti, and hypothetical outcome plots"
+author: "Will Bonnell"
+date: "2018/04/26"
+output:
+  xaringan::moon_reader:
+    lib_dir: libs
+    nature:
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+    css: xaringan-themer.css
+---
+
+```{r setup, include=FALSE}
+options(htmltools.dir.version = FALSE)
+
+library(tidyverse)
+library(xaringanthemer)
+library(gganimate)
+library(rio)
+library(survey)
+library(srvyr)
+library(ggplot2)
+library(microbenchmark)
+
+mono_light(base_color = "#0077be",
+           header_font_google = google_font("Josefin Sans"),
+           text_font_google   = google_font("Montserrat", "300", "300i"),
+           code_font_google   = google_font("Droid Mono")
+           )
+```
+
+```{css, echo = FALSE}
+
+.remark-code, .remark-inline-code {
+  background: #f0f0f0;
+}
+.remark-code {
+  font-size: 12px;
+}
+.huge .remark-code { /*Change made here*/
+  font-size: 200% !important;
+}
+.tiny .remark-code { /*Change made here*/
+  font-size: 70% !important;
+}
+```
+
+.pull-left[
+### What is the problem
+
+1. Action-accuracy gap<sup>1</sup>
+
+1. Status quo of easily misinterpretable dataviz
+
+1. Misconveyed info leads to loss of credibility of researchers
+
+### What can we do
+
+1. Frequency framing
+
+1. Express potential outcomes
+
+]
+
+.pull-right[
+
+<br>
+
+![an image](https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/Irma_2017-09-06_1745Z.jpg/800px-Irma_2017-09-06_1745Z.jpg)
+
+]
+
+.footnote[
+[1] (Hullman 2018)
+]
+
+---
+class: inverse, center, middle
+
+#The Status Quo
+
+---
+
+##Cones of Uncertainty
+
+![an image](https://mikehaskew.files.wordpress.com/2008/09/ike.jpg)
+
+
+
+Image credit: [Cornell Risk Communication Research Group](https://www.risk.comm.cornell.edu/research_briefs/the-cone-of-uncertainty/)
+
+
+---
+
+###Reimagined
+
+```{r hid, echo = FALSE, message = FALSE}
+library(emojifont)
+library(ggmap)
+
+hurricane <- read.csv("hurricanes.csv")
+
+hurricane1 <- separate(hurricane, col = lat, into = c("lon", "lat"), sep = ",") %>%
+  mutate(lat = as.numeric(lat),
+         lon = as.numeric(lon))
+
+```
+
+
+``` {r plo, message = FALSE, warning = FALSE, fig.align = "center", fig.height = 5, cache = TRUE}
+map <- get_map(location = c(lon = -72, lat = 24), zoom = 5, maptype = "satellite")
+
+g <- ggmap(map, extent = "device") +
+  geom_path(data = hurricane1, aes(x = lon, y = lat, group = hurricane),  colour = "#ff4500", size = 1, alpha = 0.6) +
+  geom_point(data = hurricane1, aes(x = lon, y = lat), size = 2, alpha = 0.9, colour = "#ff0800") +
+  geom_text(data = hurricane1[1,], aes(x = lon, y = lat), size = 10, label = emoji("cyclone")) +
+  coord_fixed(ylim=c(16, 34))
+g
+
+```
+
+---
+
+#Error bars and violins
+
+
+``` {r ok, include = FALSE}
+
+anes <- read.csv("anes_pilot_2018.csv") 
+
+anes1 <- gather(anes, ftfbi, ftkavanaugh, ftmueller, key = "Subject", value = "Thermometer")
+
+anes2 <- mutate(anes1, Subject = factor(Subject),
+                Subject = fct_recode(Subject,
+                                     "FBI" = "ftfbi",
+                                     "Kavanaugh" = "ftkavanaugh",
+                                     "Mueller" = "ftmueller")) %>%
+  filter(Thermometer <= 100)
+
+iris_sum <- iris %>%
+  group_by(Species) %>%
+  summarise(mean = mean(Petal.Length),
+            sd = sd(Petal.Length))
+
+```
+
+.pull-left[
+
+``` {r plot1, fig.height=7, dev='svg', echo = FALSE}
+g <- ggplot(iris_sum, aes(Species, mean, fill = Species)) +
+  geom_col(color = "blue") +
+  geom_errorbar(aes(ymin = mean - sd, ymax = mean + sd), width = 0.2) +
+  labs(y = "Petal length") +
+  theme_minimal()
+g
+
+```
+
+]
+
+
+
+.pull-right[
+
+``` {r plot, fig.height=7, dev='svg', echo = FALSE}
+g <- ggplot(anes2, aes(x=Subject, y=Thermometer, fill=Subject)) +
+  geom_violin() +
+  theme_minimal()
+g
+
+```
+
+]
+
+---
+
+class: inverse, center, middle
+
+#Potential Replacement
+
+---
+
+##Hypothetical Outcome Plots
+
+1. Animated plots to show potential values or probabilities
+
+1. Allow individuals to think in finite terms (counts) instead of inifinite terms (probabilities)
+
+1. Outperformed error bars and violin plots in assessing respondents ability to predict probability that B > A
+
+---
+
+```{r wrang, echo = FALSE, warning = FALSE}
+mtv <- import("apnorc_mtv_wave_1.dta")
+
+mtv[mtv == 99] <- NA
+
+mtv1 <- mtv %>%
+  mutate(Memes = fct_recode(as.factor(q9c),
+         "Regularly" = "1",
+         "Regularly" = "2",
+         "Not" = "3",
+         "Not" = "4"))
+
+mtvsvy <- mtv1 %>%
+  as_survey_design(ids = su_id, weights = finalwt)
+
+mtv_group <- mtvsvy %>%
+  group_by(agegrp, Memes) %>%
+  summarise(percentage = survey_mean(na.rm = TRUE)) %>%
+  mutate(sd = 1.96*percentage_se) %>%
+  filter(Memes == "Regularly")
+
+mean_young <- mtv_group %>%
+  slice(2)
+
+mean_old <- mtv_group %>%
+  slice(2)
+
+
+mtv_hyp <- tibble(
+  `18-22` = rnorm(50, mean = mean_young$percentage, sd = mean_young$sd), 
+  `30-34` = rnorm(50, mean = mean_old$percentage, sd = mean_old$sd)
+)   %>%
+rowid_to_column(var = "simulation") %>% 
+  gather(age, probability, -simulation)
+```
+
+Plotting potential real values
+
+```{r ani, cache = TRUE, warning = FALSE, fig.height = 5, fig.align = "center"}
+ggplot(mtv_hyp, aes(age, probability)) + 
+  geom_errorbar(aes(ymin = probability, ymax = probability)) + 
+  theme_minimal() +
+  theme(axis.title.y = element_text(margin = margin(r = 20))) +
+  # its animated yo
+  transition_states(
+    simulation,
+    transition_length = 2,
+    state_length = 1) +
+  enter_fade() + 
+  exit_shrink() +
+  ease_aes('sine-in-out') +
+  shadow_mark(past = TRUE, future = TRUE, color = "#d3d3d3") + 
+  labs(x = "Age", y = "Percentage")
+```
+
+
+---
+
+###Distribution example
+
+```{r gg, warning = FALSE, message = FALSE, eval = FALSE}
+
+mb <- microbenchmark(x, y, n = 50)
+
+ggplot2::autoplot(mb) +
+  theme_minimal
+
+```
+
+![an image](distribution.png)
+
+---
+```{r lol, echo = FALSE, message = FALSE, warning = FALSE}
+mb <- read.csv("mbtest.csv")
+
+mb1 <- mb %>%
+  mutate(expr = as.character(expr)) %>%
+  mutate(frame = rep(1:(100/2), each = 2))
+
+```
+
+###Hypothetical runtimes
+
+```{r final, fig.height = 4, fig.align = "center", cache=TRUE, message = FALSE}
+
+ggplot(mb1, aes(expr, time)) + 
+  geom_errorbar(aes(ymin = time, ymax = time)) + 
+  theme_minimal() +
+  theme(axis.title.y = element_text(margin = margin(r = 20))) +
+  transition_states(frame, transition_length = 2, state_length = 1) +
+  enter_fade() + 
+  exit_shrink() +
+  ease_aes('sine-in-out') +
+  shadow_mark(past = TRUE, future = TRUE, color = "#d3d3d3") + 
+  labs(x = "Function", y = "Time to run")
+
+```
+
+---
+
+class: center, middle
+
+# Thanks!
+
+Slides created via the R package [**xaringan**](https://github.com/yihui/xaringan).
