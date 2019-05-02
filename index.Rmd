@@ -189,7 +189,11 @@ class: inverse, center, middle
 
 1. Allow individuals to think in finite terms (counts) instead of inifinite terms (probabilities)
 
-1. Outperformed error bars and violin plots in assessing respondents ability to predict probability that B > A
+1. Outperformed error bars and violin plots in assessing respondents ability to predict probability that B > A<sup>2</sup>
+
+.footnote[
+[2] (Hullman 2015)
+]
 
 ---
 
@@ -300,3 +304,9 @@ class: center, middle
 Slides created via the R package [**xaringan**](https://github.com/yihui/xaringan).
 
 Twitter: [@_willdebras](https://twitter.com/_willdebras)
+
+---
+
+##References:
+
+[Hullman, et al. 2015](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0142444)
